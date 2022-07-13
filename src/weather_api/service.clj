@@ -5,6 +5,7 @@
             [io.pedestal.interceptor.helpers :refer [definterceptor defhandler]]
             [ring.util.response :as ring-resp]
             [monger.core :as mg]
+            [clojure.string :as str]
             [monger.collection :as mc]
             [cheshire.core :as json]
             [clj-http.client :as client]))
@@ -31,9 +32,11 @@
      {:conn conn :db db})))
 
 (defn get-weather-history [request]
-  (let [{:keys [db]} (get-db)]
+  (let [{:keys [db]} (get-db)
+        city (get-in request [:path-params :city])]
     (ring-resp/response
-     (json/generate-string (mc/find-maps db "weather-history")))))
+     (json/generate-string
+      (mc/find-maps db "weather-history" {:city (str/lower-case city)})))))
 
 (defn get-city-weather
   [request]
@@ -47,7 +50,7 @@
                    (json/parse-string true))
         output {:temperature (get-in report [:main :temp])
                 :datetime (java.util.Date.)
-                :city (:name report)}
+                :city (str/lower-case (:name report))}
         {:keys [db]} (get-db)]
     (try
       ;;FIXME wrong to insert data in db in get request but assuming the requirements
@@ -70,7 +73,7 @@
       ["/about" {:get about-page}]
       #_["/weather" {:get weather-handler}]
       ["/weather/:city" {:get get-city-weather}]
-      ["/weather-history" {:get get-weather-history}]]]])
+      ["/weather-history/:city" {:get get-weather-history}]]]])
 
 
 ;; Consumed by weather-api.server/create-server
@@ -106,7 +109,7 @@
               ;;  This can also be your own chain provider/server-fn -- http://pedestal.io/reference/architecture-overview#_chain_provider
               ::http/type :jetty
               ;;::http/host "localhost"
-              ::http/port (Integer. (or (System/getenv "PORT") 5000))
+              ::http/port (Integer. (or (System/getenv "PORT") 8080))
               ;; Options to pass to the container (Jetty)
               ::http/container-options {:h2c? true
                                         :h2? false
@@ -129,4 +132,4 @@
                               :units "metric"}})
              :body
              (json/parse-string true)))
- )
+  )
